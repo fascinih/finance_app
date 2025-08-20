@@ -1,0 +1,336 @@
+# Prompt Atualizado para Desenvolvimento de Aplicação Financeira com LLM Local - Ubuntu
+
+## Contexto do Projeto
+Você é um engenheiro de software experiente que deve criar uma aplicação completa de monitoramento e análise financeira pessoal. A aplicação utilizará um LLM local (Ollama) para análise inteligente de dados financeiros, otimizada para **Ubuntu rodando em SSD externo via USB-C**.
+
+## Especificações Técnicas do Hardware
+- **Processador**: Intel i7-9750H
+- **GPU**: NVIDIA GeForce GTX 1660 TI com 6GB VRAM
+- **RAM**: 16GB
+- **Sistema Operacional**: Ubuntu 22.04/24.04 LTS em SSD externo via USB-C
+- **Performance**: USB 3.1 Type-C (até 10Gbps) - performance equivalente a SSD interno
+- **Drivers NVIDIA**: Suporte nativo completo no Ubuntu para GTX 1660 TI
+
+## Vantagens do Ambiente Ubuntu para o Projeto
+
+### Performance Superior do Ollama
+- **30-40% melhor performance** comparado ao Windows nativo para LLMs
+- **Melhor gerenciamento de memória** para modelos grandes
+- **Drivers NVIDIA otimizados** com suporte completo para CUDA
+- **Menor overhead** do sistema operacional
+
+### Integração de Desenvolvimento
+- **Containers Docker nativos** (sem WSL2)
+- **Python e bibliotecas ML** com melhor performance
+- **Ferramentas de desenvolvimento** mais estáveis
+- **APIs bancárias** funcionam melhor em ambiente Linux
+
+## Requisitos Funcionais da Aplicação
+
+### 1. Funcionalidades Principais
+- **Importação de dados**: Suporte para CSV, OFX e integração com API do Itaú Open Finance
+- **Categorização automática**: Uso do LLM local para classificar transações (performance 30% superior no Ubuntu)
+- **Detecção de gastos recorrentes**: Algoritmos para identificar despesas fixas e variáveis
+- **Análise de forecast**: Previsões de gastos usando Prophet e ARIMA
+- **Dashboard interativo**: Interface web com Streamlit
+- **Alertas inteligentes**: Notificações sobre gastos incomuns ou metas excedidas
+
+### 2. Funcionalidades de Análise Avançada
+- Análise de tendências de gastos por categoria
+- Identificação de padrões sazonais
+- Comparação mensal/anual de despesas
+- Sugestões de otimização financeira via LLM
+- Relatórios automatizados com insights de IA
+
+## Especificações Técnicas Otimizadas para Ubuntu
+
+### Stack Tecnológico Obrigatório
+- **SO**: Ubuntu 22.04 LTS (recomendado para estabilidade)
+- **Backend**: Python 3.10+ com FastAPI
+- **Frontend**: Streamlit para dashboard
+- **Banco de dados**: PostgreSQL 14+ (melhor performance no Linux)
+- **LLM**: Ollama com modelos recomendados:
+  - **DeepSeek R1 7B**: 4.7GB VRAM, ~25 tokens/s no Ubuntu
+  - **Llama 3.2 3B**: 2.0GB VRAM, ~45 tokens/s no Ubuntu
+  - **Mistral 7B**: 4.1GB VRAM, ~42 tokens/s no Ubuntu
+- **Análise de dados**: Pandas, NumPy, SciPy
+- **Forecast**: Prophet, statsmodels (ARIMA), scikit-learn
+- **Visualização**: Plotly, Matplotlib, Seaborn
+- **Containerização**: Docker e Docker Compose
+
+### Configuração Específica para Ubuntu
+
+#### 1. Setup de Drivers NVIDIA
+```bash
+# Instalar drivers NVIDIA automaticamente
+sudo ubuntu-drivers autoinstall
+
+# Verificar instalação
+nvidia-smi
+
+# Instalar CUDA Toolkit se necessário
+sudo apt install nvidia-cuda-toolkit
+```
+
+#### 2. Setup do Ollama Otimizado
+```bash
+# Instalação do Ollama no Ubuntu
+curl -fsSL https://ollama.com/install.sh | sh
+
+# Configurar variáveis de ambiente para performance
+export OLLAMA_GPU_OVERHEAD=0
+export OLLAMA_NUM_PARALLEL=4
+export OLLAMA_FLASH_ATTENTION=true
+
+# Baixar modelo otimizado
+ollama pull deepseek-r1:7b
+```
+
+#### 3. Configuração do PostgreSQL
+```bash
+# Instalação e configuração otimizada
+sudo apt install postgresql postgresql-contrib
+sudo -u postgres createdb finance_app
+
+# Configurações de performance para SSD externo
+# Em postgresql.conf:
+shared_buffers = 4GB
+effective_cache_size = 12GB
+random_page_cost = 1.1  # Otimizado para SSD
+```
+
+### Arquitetura da Aplicação Otimizada
+```
+finance_app/
+├── docker-compose.yml          # Container orchestration
+├── Dockerfile                  # App container
+├── requirements.txt           # Dependencies
+├── src/
+│   ├── api/                   # FastAPI endpoints
+│   │   ├── __init__.py
+│   │   ├── main.py           # App entry point
+│   │   ├── routes/           # API routes
+│   │   └── middleware/       # Auth, CORS, etc.
+│   ├── models/               # SQLAlchemy models
+│   │   ├── __init__.py
+│   │   ├── database.py       # DB config
+│   │   ├── transactions.py   # Transaction model
+│   │   └── categories.py     # Category model
+│   ├── services/             # Business logic
+│   │   ├── __init__.py
+│   │   ├── llm_service.py    # Ollama integration
+│   │   ├── forecast_service.py # Prophet/ARIMA
+│   │   ├── categorizer.py    # Auto categorization
+│   │   ├── recurring_detector.py # Recurring expenses
+│   │   └── itau_api.py       # Bank API integration
+│   ├── utils/                # Helper functions
+│   │   ├── __init__.py
+│   │   ├── data_import.py    # CSV/OFX import
+│   │   ├── validators.py     # Data validation
+│   │   └── cache.py          # Redis cache
+│   ├── streamlit_app/        # Frontend
+│   │   ├── __init__.py
+│   │   ├── main.py          # Streamlit app
+│   │   ├── pages/           # Multi-page app
+│   │   │   ├── dashboard.py
+│   │   │   ├── transactions.py
+│   │   │   ├── forecast.py
+│   │   │   └── reports.py
+│   │   └── components/      # Reusable components
+│   └── config/              # Configuration
+│       ├── __init__.py
+│       ├── settings.py      # App settings
+│       └── logging.py       # Logging config
+├── data/                    # Data directory
+│   ├── samples/            # Sample data
+│   ├── exports/            # Exported reports
+│   └── uploads/            # Uploaded files
+├── models/                 # ML models cache
+├── scripts/               # Utility scripts
+│   ├── setup_ubuntu.sh    # Ubuntu setup script
+│   ├── install_drivers.sh # NVIDIA setup
+│   └── backup.sh          # Backup script
+├── tests/                 # Test suite
+└── docs/                  # Documentation
+```
+
+## Tarefas Específicas para Implementação
+
+### Fase 1: Setup Ubuntu e Dependências
+1. **Crie script de setup completo** para Ubuntu:
+   - Instalação automática de drivers NVIDIA
+   - Configuração do Ollama otimizada
+   - Setup do PostgreSQL
+   - Instalação de dependências Python
+
+2. **Configure ambiente de desenvolvimento**:
+   - Virtual environment com Python 3.10+
+   - Docker e Docker Compose
+   - VSCode com extensões relevantes
+
+3. **Teste performance do Ollama**:
+   - Benchmark diferentes modelos
+   - Otimização de parâmetros
+   - Cache de respostas similares
+
+### Fase 2: Core Features com Performance Otimizada
+1. **Serviço LLM otimizado**:
+   - Pool de conexões com Ollama
+   - Cache inteligente com Redis
+   - Processamento em batch
+   - Fallback para CPU quando necessário
+
+2. **Detecção de gastos recorrentes**:
+   - Algoritmos baseados em ML
+   - Análise de padrões temporais
+   - Classificação automática
+
+3. **Sistema de forecast avançado**:
+   - Prophet para tendências
+   - ARIMA para sazonalidade
+   - Ensemble methods
+
+### Fase 3: Interface e Análise Avançada
+1. **Dashboard Streamlit profissional**:
+   - Design responsivo
+   - Gráficos interativos com Plotly
+   - Real-time updates
+   - Dark/light theme
+
+2. **Sistema de alertas inteligentes**:
+   - Rules engine
+   - Notificações por email/desktop
+   - Threshold dinâmico baseado em ML
+
+3. **Relatórios automatizados**:
+   - PDF generation
+   - Scheduled reports
+   - Insights gerados por LLM
+
+### Fase 4: Integração e Deploy
+1. **API do Itaú Open Finance**:
+   - Autenticação segura
+   - Sync automático
+   - Error handling robusto
+
+2. **Containerização completa**:
+   - Multi-stage Dockerfile
+   - Docker Compose para desenvolvimento
+   - Volumes para persistência
+
+3. **Backup e segurança**:
+   - Backup automático criptografado
+   - Logs seguros
+   - Data encryption at rest
+
+## Otimizações Específicas para SSD Externo USB-C
+
+### Configurações de Sistema
+```bash
+# Otimizar mount point para SSD externo
+# Em /etc/fstab:
+UUID=your-uuid /mount/point ext4 defaults,noatime,discard 0 2
+
+# Configurar swappiness para SSD
+echo 'vm.swappiness=10' >> /etc/sysctl.conf
+
+# Otimizar I/O scheduler para SSD
+echo 'mq-deadline' > /sys/block/sdX/queue/scheduler
+```
+
+### Configurações de Banco de Dados
+```sql
+-- Otimizações PostgreSQL para SSD externo
+ALTER SYSTEM SET synchronous_commit = off;
+ALTER SYSTEM SET wal_buffers = '16MB';
+ALTER SYSTEM SET checkpoint_completion_target = 0.9;
+SELECT pg_reload_conf();
+```
+
+## Deliverables Esperados
+
+### Scripts de Setup Automatizado
+- **setup_ubuntu.sh**: Setup completo do ambiente
+- **install_nvidia.sh**: Instalação otimizada dos drivers
+- **configure_ollama.sh**: Configuração do Ollama
+- **setup_database.sh**: Setup do PostgreSQL
+
+### Código Completo e Otimizado
+- Aplicação Python completa com type hints
+- Docker setup para desenvolvimento e produção
+- Configurações otimizadas para Ubuntu
+- Cache strategies para performance
+
+### Documentação Detalhada
+- README.md com setup específico para Ubuntu
+- Performance benchmarks comparando com Windows
+- Troubleshooting guide para SSD externo
+- API documentation completa
+
+### Dados e Exemplos
+- Dataset sintético com 1000+ transações
+- Exemplos de categorização via LLM
+- Casos de teste para diferentes cenários
+- Performance metrics e benchmarks
+
+## Considerações Especiais para Ubuntu
+
+### Performance e Otimização
+- **VRAM management**: Monitoramento ativo da GPU
+- **Memory caching**: Redis para cache de LLM responses
+- **Database tuning**: Configurações específicas para SSD
+- **CPU optimization**: Multi-threading para Prophet
+
+### Segurança e Backup
+- **Full disk encryption**: Para dados financeiros
+- **Automated backups**: Script de backup incremental
+- **Secure communications**: HTTPS para todas as APIs
+- **Audit logs**: Logging completo de transações
+
+### Monitoramento
+- **System monitoring**: htop, nvidia-smi integration
+- **Application metrics**: Performance dashboards
+- **Health checks**: Automated system health monitoring
+- **Alert system**: Email/desktop notifications
+
+## Critérios de Sucesso Específicos
+
+- ✅ **Performance**: 30%+ melhor que Windows equivalente
+- ✅ **GPU Utilization**: >80% para modelos de 7B parâmetros
+- ✅ **Response Time**: <2s para categorização de transações
+- ✅ **Accuracy**: >90% precisão na categorização automática
+- ✅ **Stability**: 99%+ uptime em SSD externo
+- ✅ **Resource Usage**: <8GB RAM durante operação normal
+- ✅ **Backup**: Backup automático funcionando
+- ✅ **Integration**: API Itaú funcionando sem erros
+
+## Scripts de Inicialização
+
+### Script Principal de Setup
+```bash
+#!/bin/bash
+# setup_complete.sh
+echo "Configurando ambiente Ubuntu para aplicação financeira..."
+
+# Atualizar sistema
+sudo apt update && sudo apt upgrade -y
+
+# Instalar dependências básicas
+sudo apt install -y curl wget git python3-pip postgresql docker.io docker-compose
+
+# Configurar drivers NVIDIA
+./scripts/install_nvidia.sh
+
+# Instalar e configurar Ollama
+./scripts/configure_ollama.sh
+
+# Setup banco de dados
+./scripts/setup_database.sh
+
+# Instalar dependências Python
+pip3 install -r requirements.txt
+
+echo "Setup completo! Execute 'docker-compose up' para iniciar a aplicação."
+```
+
+**Importante**: Esta aplicação será otimizada especificamente para Ubuntu, aproveitando as vantagens de performance, estabilidade e integração que o Linux oferece para desenvolvimento com LLMs e aplicações de dados financeiros. O ambiente SSD externo via USB-C proporcionará performance equivalente a instalação interna.

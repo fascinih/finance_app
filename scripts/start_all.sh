@@ -1,0 +1,263 @@
+#!/bin/bash
+
+# Finance App - Script de Inicialização Completa
+# Inicia todos os serviços da aplicação financeira
+
+set -e
+
+# Configurações
+APP_DIR="/home/henrique/Projetos/finance_app"
+VENV_DIR="$APP_DIR/venv"
+LOG_DIR="/var/log/finance_app"
+
+# Cores para output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+echo -e "${BLUE}=== Finance App - Inicialização Completa ===${NC}"
+echo "Iniciado em: $(date)"
+
+# Função para log
+log_message() {
+    echo -e "$1"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "$LOG_DIR/startup.log"
+}
+
+# Criar diretório de logs se não existir
+sudo mkdir -p "$LOG_DIR"
+sudo chown $USER:$USER "$LOG_DIR"
+
+log_message "${YELLOW}Verificando pré-requisitos...${NC}"
+
+# Verificar se estamos no diretório correto
+if [ ! -f "$APP_DIR/requirements.txt" ]; then
+    log_message "${RED}Erro: Diretório da aplicação não encontrado em $APP_DIR${NC}"
+    exit 1
+fi
+
+cd "$APP_DIR"
+
+# Verificar Python e ambiente virtual
+if [ ! -d "$VENV_DIR" ]; then
+    log_message "${YELLOW}Criando ambiente virtual Python...${NC}"
+    python3 -m venv "$VENV_DIR"
+fi
+
+# Ativar ambiente virtual
+source "$VENV_DIR/bin/activate"
+
+# Atualizar dependências
+log_message "${YELLOW}Verificando dependências Python...${NC}"
+pip install --upgrade pip > /dev/null 2>&1
+pip install -r requirements.txt > /dev/null 2>&1
+
+log_message "${GREEN}✓ Dependências Python atualizadas${NC}"
+
+# Verificar e iniciar PostgreSQL
+log_message "${YELLOW}Verificando PostgreSQL...${NC}"
+
+if ! systemctl is-active --quiet postgresql; then
+    log_message "${YELLOW}Iniciando PostgreSQL...${NC}"
+    sudo systemctl start postgresql
+    sleep 3
+fi
+
+if systemctl is-active --quiet postgresql; then
+    log_message "${GREEN}✓ PostgreSQL ativo${NC}"
+else
+    log_message "${RED}Erro: Não foi possível iniciar PostgreSQL${NC}"
+    exit 1
+fi
+
+# Verificar banco de dados
+if psql -U finance_user -d finance_app -c '\q' 2>/dev/null; then
+    log_message "${GREEN}✓ Banco de dados acessível${NC}"
+else
+    log_message "${YELLOW}Configurando banco de dados...${NC}"
+    
+    # Executar script de configuração do banco
+    if [ -f "scripts/setup_database.sh" ]; then
+        bash scripts/setup_database.sh
+    else
+        log_message "${RED}Erro: Script de configuração do banco não encontrado${NC}"
+        exit 1
+    fi
+fi
+
+# Verificar e iniciar Redis
+log_message "${YELLOW}Verificando Redis...${NC}"
+
+if ! systemctl is-active --quiet redis-server; then
+    log_message "${YELLOW}Iniciando Redis...${NC}"
+    sudo systemctl start redis-server
+    sleep 2
+fi
+
+if systemctl is-active --quiet redis-server; then
+    log_message "${GREEN}✓ Redis ativo${NC}"
+else
+    log_message "${RED}Erro: Não foi possível iniciar Redis${NC}"
+    exit 1
+fi
+
+# Verificar Ollama
+log_message "${YELLOW}Verificando Ollama...${NC}"
+
+if ! pgrep -x "ollama" > /dev/null; then
+    log_message "${YELLOW}Iniciando Ollama...${NC}"
+    
+    # Tentar iniciar Ollama em background
+    nohup ollama serve > "$LOG_DIR/ollama.log" 2>&1 &
+    sleep 5
+    
+    if pgrep -x "ollama" > /dev/null; then
+        log_message "${GREEN}✓ Ollama iniciado${NC}"
+    else
+        log_message "${YELLOW}⚠ Ollama não disponível (opcional)${NC}"
+    fi
+else
+    log_message "${GREEN}✓ Ollama já está rodando${NC}"
+fi
+
+# Verificar se há modelo Ollama disponível
+if pgrep -x "ollama" > /dev/null; then
+    MODELS=$(ollama list 2>/dev/null | grep -v "NAME" | wc -l)
+    if [ "$MODELS" -eq 0 ]; then
+        log_message "${YELLOW}Nenhum modelo Ollama encontrado. Baixando modelo padrão...${NC}"
+        ollama pull llama2 > /dev/null 2>&1 &
+        log_message "${BLUE}Download do modelo iniciado em background${NC}"
+    else
+        log_message "${GREEN}✓ $MODELS modelo(s) Ollama disponível(is)${NC}"
+    fi
+fi
+
+# Parar serviços existentes se estiverem rodando
+log_message "${YELLOW}Parando serviços existentes...${NC}"
+
+# Parar FastAPI
+if pgrep -f "uvicorn.*finance_app" > /dev/null; then
+    pkill -f "uvicorn.*finance_app"
+    sleep 2
+    log_message "${BLUE}FastAPI anterior parado${NC}"
+fi
+
+# Parar Streamlit
+if pgrep -f "streamlit.*finance_app" > /dev/null; then
+    pkill -f "streamlit.*finance_app"
+    sleep 2
+    log_message "${BLUE}Streamlit anterior parado${NC}"
+fi
+
+# Iniciar FastAPI
+log_message "${YELLOW}Iniciando FastAPI...${NC}"
+
+nohup python -m uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload > "$LOG_DIR/fastapi.log" 2>&1 &
+FASTAPI_PID=$!
+
+# Aguardar FastAPI inicializar
+sleep 5
+
+# Verificar se FastAPI está rodando
+if curl -s http://localhost:8000/api/v1/health > /dev/null 2>&1; then
+    log_message "${GREEN}✓ FastAPI iniciado (PID: $FASTAPI_PID)${NC}"
+else
+    log_message "${RED}Erro: FastAPI não respondeu${NC}"
+    
+    # Mostrar logs de erro
+    if [ -f "$LOG_DIR/fastapi.log" ]; then
+        log_message "${YELLOW}Últimas linhas do log do FastAPI:${NC}"
+        tail -10 "$LOG_DIR/fastapi.log"
+    fi
+    
+    exit 1
+fi
+
+# Iniciar Streamlit
+log_message "${YELLOW}Iniciando Streamlit...${NC}"
+
+nohup streamlit run streamlit_app.py --server.port 8501 --server.address 0.0.0.0 > "$LOG_DIR/streamlit.log" 2>&1 &
+STREAMLIT_PID=$!
+
+# Aguardar Streamlit inicializar
+sleep 8
+
+# Verificar se Streamlit está rodando
+if netstat -tuln | grep -q ":8501"; then
+    log_message "${GREEN}✓ Streamlit iniciado (PID: $STREAMLIT_PID)${NC}"
+else
+    log_message "${RED}Erro: Streamlit não respondeu${NC}"
+    
+    # Mostrar logs de erro
+    if [ -f "$LOG_DIR/streamlit.log" ]; then
+        log_message "${YELLOW}Últimas linhas do log do Streamlit:${NC}"
+        tail -10 "$LOG_DIR/streamlit.log"
+    fi
+    
+    exit 1
+fi
+
+# Executar verificações de saúde
+log_message "${YELLOW}Executando verificações de saúde...${NC}"
+
+# Testar API
+API_HEALTH=$(curl -s http://localhost:8000/api/v1/health | jq -r '.status' 2>/dev/null || echo "error")
+if [ "$API_HEALTH" = "healthy" ]; then
+    log_message "${GREEN}✓ API Health Check: OK${NC}"
+else
+    log_message "${YELLOW}⚠ API Health Check: $API_HEALTH${NC}"
+fi
+
+# Salvar PIDs para controle
+echo "$FASTAPI_PID" > "$LOG_DIR/fastapi.pid"
+echo "$STREAMLIT_PID" > "$LOG_DIR/streamlit.pid"
+
+# Mostrar resumo
+log_message "${BLUE}=== Resumo da Inicialização ===${NC}"
+log_message "${GREEN}✓ PostgreSQL: Ativo${NC}"
+log_message "${GREEN}✓ Redis: Ativo${NC}"
+
+if pgrep -x "ollama" > /dev/null; then
+    log_message "${GREEN}✓ Ollama: Ativo${NC}"
+else
+    log_message "${YELLOW}⚠ Ollama: Não disponível${NC}"
+fi
+
+log_message "${GREEN}✓ FastAPI: http://localhost:8000 (PID: $FASTAPI_PID)${NC}"
+log_message "${GREEN}✓ Streamlit: http://localhost:8501 (PID: $STREAMLIT_PID)${NC}"
+
+# Mostrar URLs de acesso
+echo ""
+log_message "${BLUE}=== URLs de Acesso ===${NC}"
+log_message "${YELLOW}Interface Web (Streamlit): http://localhost:8501${NC}"
+log_message "${YELLOW}API Backend (FastAPI): http://localhost:8000${NC}"
+log_message "${YELLOW}Documentação da API: http://localhost:8000/docs${NC}"
+
+# Mostrar comandos úteis
+echo ""
+log_message "${BLUE}=== Comandos Úteis ===${NC}"
+log_message "${YELLOW}Parar todos os serviços: bash scripts/stop_all.sh${NC}"
+log_message "${YELLOW}Monitorar sistema: bash scripts/monitor_system.sh${NC}"
+log_message "${YELLOW}Backup do banco: bash scripts/backup_database.sh${NC}"
+log_message "${YELLOW}Ver logs: tail -f $LOG_DIR/*.log${NC}"
+
+# Configurar monitoramento automático (opcional)
+if [ -f "scripts/monitor_system.sh" ]; then
+    log_message "${YELLOW}Configurando monitoramento automático...${NC}"
+    
+    # Adicionar ao crontab se não existir
+    if ! crontab -l 2>/dev/null | grep -q "monitor_system.sh"; then
+        (crontab -l 2>/dev/null; echo "*/15 * * * * $APP_DIR/scripts/monitor_system.sh > /dev/null 2>&1") | crontab -
+        log_message "${GREEN}✓ Monitoramento automático configurado (a cada 15 minutos)${NC}"
+    fi
+fi
+
+log_message "${GREEN}=== Inicialização Concluída com Sucesso ===${NC}"
+log_message "Finalizado em: $(date)"
+
+echo ""
+echo -e "${GREEN}🎉 Finance App iniciado com sucesso!${NC}"
+echo -e "${BLUE}Acesse http://localhost:8501 para usar a aplicação${NC}"
+
